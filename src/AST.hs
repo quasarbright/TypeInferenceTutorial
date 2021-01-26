@@ -28,45 +28,40 @@ data Scheme = SForall String Scheme
 type Context = Map String Scheme
 
 freeMonoVars :: Mono -> Set String
-freeMonoVars = \case
-    TVar x -> Set.singleton x
-    TNat -> mempty
-    TBool -> mempty
-    TArr arg ret -> Set.union (freeMonoVars arg) (freeMonoVars ret)
+freeMonoVars (TVar x) = Set.singleton x
+freeMonoVars TNat = Set.empty
+freeMonoVars TBool = Set.empty
+freeMonoVars (TArr arg ret) = Set.union (freeMonoVars arg) (freeMonoVars ret) 
 
 freeSchemeVars :: Scheme -> Set String
-freeSchemeVars = \case
-    SForall x s -> Set.delete x (freeSchemeVars s)
-    SMono t -> freeMonoVars t
+freeSchemeVars (SForall x s) = Set.delete x (freeSchemeVars s)
+freeSchemeVars (SMono t) = freeMonoVars t
 
 freeCtxVars :: Context -> Set String
 freeCtxVars ctx = mconcat (fmap freeSchemeVars (Map.elems ctx))
 
 subsMono :: Map String Mono -> Mono -> Mono
-subsMono subs = \case
-    TVar x -> fromMaybe (TVar x) (Map.lookup x subs)
-    TNat -> TNat
-    TBool -> TBool
-    TArr arg ret -> TArr (subsMono subs arg) (subsMono subs ret)
+subsMono subs (TVar x) = fromMaybe (TVar x) (Map.lookup x subs)
+subsMono _    TNat = TNat
+subsMono _    TBool = TBool
+subsMono subs (TArr arg ret) = TArr (subsMono subs arg) (subsMono subs ret)
 
 subMono :: String -> Mono -> Mono -> Mono
-subMono target replacement = \case
-    TVar x
-        | x == target -> replacement
-        | otherwise -> TVar x
-    TNat -> TNat
-    TBool -> TBool
-    TArr arg ret -> TArr (subMono target replacement arg) (subMono target replacement ret)
+subMono target replacement (TVar x) =
+    if x == target then replacement else TVar x
+subMono _      _           TNat = TNat
+subMono _      _           TBool = TBool
+subMono target replacement (TArr arg ret) = TArr (subMono target replacement arg) (subMono target replacement ret)
 
 subsScheme :: Map String Mono -> Scheme -> Scheme
-subsScheme subs = \case
-    SForall x s -> SForall x $ subsScheme subs' s
-        where subs' = Map.delete x subs
-    SMono t -> SMono $ subsMono subs t
+subsScheme subs (SForall x s) =
+    let subs' = Map.delete x subs
+    in SForall x (subsScheme subs' s)
+subsScheme subs (SMono t) = SMono (subsMono subs t)
 
 subScheme :: String -> Mono -> Scheme -> Scheme
 subScheme target replacement = \case
     SForall x s
         | x == target -> SForall x s
         | otherwise -> SForall x (subScheme target replacement s)
-    SMono t -> SMono $ subMono target replacement t
+    SMono t -> SMono (subMono target replacement t)

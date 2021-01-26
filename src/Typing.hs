@@ -25,40 +25,40 @@ type State = (UnionFind Mono, Integer) -- the integer is used for newvar
 newtype Checker a = Checker { runChecker :: Context -> State -> Either TypeError (State, a)}
 
 instance Functor Checker where
-    fmap f ma = Checker $ \ctx s ->
+    fmap f ma = Checker (\ctx s ->
         case runChecker ma ctx s of
             Left err -> Left err
-            Right (s',a) -> Right (s',f a)
+            Right (s',a) -> Right (s',f a))
 
 instance Applicative Checker where
-    pure a = Checker $ \_ s -> Right (s,a)
-    mf <*> ma = Checker $ \ctx s ->
+    pure a = Checker (\_ s -> Right (s,a))
+    mf <*> ma = Checker (\ctx s ->
         case runChecker mf ctx s of
             Left err -> Left err
             Right (s',f) -> case runChecker ma ctx s' of
                 Left err -> Left err
-                Right (s'',a) -> Right (s'',f a)
+                Right (s'',a) -> Right (s'',f a))
 
 instance Monad Checker where
     return = pure
-    ma >>= k = Checker $ \ctx s ->
+    ma >>= k = Checker (\ctx s ->
         case runChecker ma ctx s of
             Left err -> Left err
-            Right (s',a) -> runChecker (k a) ctx s'
+            Right (s',a) -> runChecker (k a) ctx s')
 
 -- monad utilities --
 
 -- | Throw a type error
 throwError :: TypeError -> Checker a
-throwError err = Checker $ \_ _ -> Left err
+throwError err = Checker (\_ _ -> Left err)
 
 -- | Get the current context of the Checker
 getContext :: Checker Context
-getContext = Checker $ \ctx s -> Right (s,ctx)
+getContext = Checker (\ctx s -> Right (s,ctx))
 
 -- | Locally modify the context for the given checking computation.
 local :: (Context -> Context) -> Checker a -> Checker a
-local f ma = Checker $ \ctx s -> runChecker ma (f ctx) s
+local f ma = Checker (\ctx s -> runChecker ma (f ctx) s)
 
 -- | Locally add a variable annotation to the context for the given checking computation.
 withVarAnnot :: String -> Scheme -> Checker a -> Checker a
@@ -70,11 +70,11 @@ withVarAnnots pairs = local (Map.union (Map.fromList pairs))
 
 -- | Get the state of the Checker
 get :: Checker State
-get = Checker $ \_ s -> Right (s,s)
+get = Checker (\_ s -> Right (s,s))
 
 -- | Set the state of the checker
 put :: State -> Checker ()
-put s = Checker $ \_ _ -> Right (s,())
+put s = Checker (\_ _ -> Right (s,()))
 
 -- | Get the union find of the Checker
 getUnionFind :: Checker (UnionFind Mono)
@@ -125,7 +125,7 @@ unify ta tb = do
     let ta' = find uf ta
         tb' = find uf tb
     let unifyTVar x t
-            | x `elem` freeMonoVars t = throwError (OccursError x t)
+            | elem x (freeMonoVars t) = throwError (OccursError x t)
             | otherwise = setUnionFind (union uf t (TVar x))
             -- the order here is important. We want x's representative to be t, not the other way around
     case (ta',tb') of
@@ -203,8 +203,8 @@ names = shortlex ['a'..'z']
 -- | replace type variables such that the resulting type has variables appearing in alphabetical order
 simplifyVars :: Mono -> Mono
 simplifyVars t =
-    let frees = Set.toList $ freeMonoVars t
-        subs = Map.fromList $ zip frees (fmap TVar names)
+    let frees = Set.toList (freeMonoVars t)
+        subs = Map.fromList (zip frees (fmap TVar names))
         t' = subsMono subs t
     in t'
 
@@ -218,7 +218,7 @@ finalizeMono t = do
 
 -- | Run type inference on an expression under an empty context and state
 runInferExpr :: Expr -> Either TypeError Mono
-runInferExpr e = case runChecker (finalizeMono =<< inferExpr e) mempty (mempty,1) of
+runInferExpr e = case runChecker (finalizeMono =<< inferExpr e) Map.empty (Map.empty,1) of
     Left err -> Left err
     Right (_,t) -> Right t
 
