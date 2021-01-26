@@ -218,7 +218,7 @@ finalizeMono t = do
 
 -- | Run type inference on an expression under an empty context and state
 runInferExpr :: Expr -> Either TypeError Type
-runInferExpr e = case runChecker (inferExpr e) mempty (mempty,1) of
+runInferExpr e = case runChecker (finalizeMono =<< inferExpr e) mempty (mempty,1) of
     Left err -> Left err
     Right (_,t) -> Right t
 
