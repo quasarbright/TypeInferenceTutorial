@@ -151,7 +151,7 @@ inferExpr (Var x) = do
         Just s -> instantiate s
 -- Int
 inferExpr (Int _) = return TInt
--- Bool
+-- True/False
 inferExpr (Bool _) = return TBool
 -- App
 inferExpr (App f arg) = do
