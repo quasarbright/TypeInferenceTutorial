@@ -10,14 +10,14 @@ import qualified Data.Set as Set
 
 -- types and instances --
 
-data TypeError = Mismatch Type Type
-               | OccursError String Type
+data TypeError = Mismatch Mono Mono
+               | OccursError String Mono
                | UnboundVar String
                deriving(Eq, Ord, Show)
 
 -- | the state will be maintained globally throughout checking.
 --  This ensures the same union find is used throughout and newvars are always unique
-type State = (UnionFind Type, Integer) -- the integer is used for newvar
+type State = (UnionFind Mono, Integer) -- the integer is used for newvar
 
 -- | The monad for type checking. Contexts will transform locally, while States will transform globally.
 --  Since checking may result in a type error, we include an either.
@@ -77,13 +77,13 @@ put :: State -> Checker ()
 put s = Checker $ \_ _ -> Right (s,())
 
 -- | Get the union find of the Checker
-getUnionFind :: Checker (UnionFind Type)
+getUnionFind :: Checker (UnionFind Mono)
 getUnionFind = do
   (uf,_) <- get
   return uf
 
 -- | Set the Checker's union find
-setUnionFind :: UnionFind Type -> Checker ()
+setUnionFind :: UnionFind Mono -> Checker ()
 setUnionFind uf = do
     (_,n) <- get
     put (uf,n)
@@ -91,7 +91,7 @@ setUnionFind uf = do
 -- typing operations --
 
 -- | Generate a unique type variable
-newvar :: Checker Type
+newvar :: Checker Mono
 newvar = do
   (uf,n) <- get
   let t = TVar ("t"++show n)
@@ -100,7 +100,7 @@ newvar = do
 
 -- | Instantiate a type scheme to a mono type, replacing quantified variables with "newvar"
 --  mono type variables
-instantiate :: Scheme -> Checker Type
+instantiate :: Scheme -> Checker Mono
 instantiate (SForall x s) = do
     x' <- newvar
     let s' = subScheme x x' s
@@ -109,7 +109,7 @@ instantiate (SMono t) = return t
 
 -- | Generalize a mono type to its most general type scheme according to its and the context's
 --  free variables
-generalize :: Type -> Checker Scheme
+generalize :: Mono -> Checker Scheme
 generalize t = do
     ctx <- getContext
     let monoFrees = freeMonoVars t
@@ -118,7 +118,7 @@ generalize t = do
     return (foldr SForall (SMono t) frees) -- forall all the free variables
 
 -- | Assert the equality of two types and solve type variables as necessary
-unify :: Type -> Type -> Checker ()
+unify :: Mono -> Mono -> Checker ()
 unify ta tb = do
     uf <- getUnionFind
     -- we want to use the "most solved" versions of these types
@@ -132,17 +132,17 @@ unify ta tb = do
         (TArr arg ret,TArr arg' ret') -> do
             unify arg arg'
             unify ret ret'
-        (TInt, TInt) -> return () -- all good
+        (TNat, TNat) -> return () -- all good
         (TBool, TBool) -> return () -- all good
         (TVar x, t) -> unifyTVar x t
         (t, TVar x) -> unifyTVar x t
         (TArr _ _,_) -> throwError (Mismatch ta' tb')
-        (TInt,_) -> throwError (Mismatch ta' tb')
+        (TNat,_) -> throwError (Mismatch ta' tb')
         (TBool,_) -> throwError (Mismatch ta' tb')
 
 -- type inference --
 
-inferExpr :: Expr -> Checker Type
+inferExpr :: Expr -> Checker Mono
 -- Var
 inferExpr (Var x) = do
     ctx <- getContext
@@ -150,7 +150,7 @@ inferExpr (Var x) = do
         Nothing -> throwError (UnboundVar x)
         Just s -> instantiate s
 -- Int
-inferExpr (Int _) = return TInt
+inferExpr (Nat _) = return TNat
 -- True/False
 inferExpr (Bool _) = return TBool
 -- App
@@ -182,12 +182,12 @@ inferExpr (If cnd thn els) = do
 -- cleaning up types --
 
 -- | Recursively find the fully solved form of this mono type
-findMono :: Type -> Checker Type
+findMono :: Mono -> Checker Mono
 findMono (TVar x) = do
     uf <- getUnionFind
     let x' = find uf (TVar x)
     if TVar x == x' then return (TVar x) else findMono x'
-findMono TInt = return TInt
+findMono TNat = return TNat
 findMono TBool = return TBool
 findMono (TArr arg ret) = do
     arg' <- findMono arg
@@ -201,7 +201,7 @@ names :: [[Char]]
 names = shortlex ['a'..'z']
 
 -- | replace type variables such that the resulting type has variables appearing in alphabetical order
-simplifyVars :: Type -> Type
+simplifyVars :: Mono -> Mono
 simplifyVars t =
     let frees = Set.toList $ freeMonoVars t
         subs = Map.fromList $ zip frees (fmap TVar names)
@@ -209,7 +209,7 @@ simplifyVars t =
     in t'
 
 -- | solve the type and make its variables nice
-finalizeMono :: Type -> Checker Type
+finalizeMono :: Mono -> Checker Mono
 finalizeMono t = do
     solved <- findMono t
     return (simplifyVars solved)
@@ -217,7 +217,7 @@ finalizeMono t = do
 -- running --
 
 -- | Run type inference on an expression under an empty context and state
-runInferExpr :: Expr -> Either TypeError Type
+runInferExpr :: Expr -> Either TypeError Mono
 runInferExpr e = case runChecker (finalizeMono =<< inferExpr e) mempty (mempty,1) of
     Left err -> Left err
     Right (_,t) -> Right t

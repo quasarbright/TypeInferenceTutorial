@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 
 data Expr = Var String
-          | Int Integer
+          | Nat Integer
           | Bool Bool
           | Lambda String Expr
           | App Expr Expr
@@ -15,22 +15,22 @@ data Expr = Var String
           | If Expr Expr Expr
           deriving(Eq, Ord, Show)
 
-data Type = TVar String
-          | TInt
+data Mono = TVar String
+          | TNat
           | TBool
-          | TArr Type Type
+          | TArr Mono Mono
           deriving(Eq, Ord, Show)
 
 data Scheme = SForall String Scheme
-            | SMono Type
+            | SMono Mono
             deriving(Eq, Ord, Show)
 
 type Context = Map String Scheme
 
-freeMonoVars :: Type -> Set String
+freeMonoVars :: Mono -> Set String
 freeMonoVars = \case
     TVar x -> Set.singleton x
-    TInt -> mempty
+    TNat -> mempty
     TBool -> mempty
     TArr arg ret -> Set.union (freeMonoVars arg) (freeMonoVars ret)
 
@@ -42,29 +42,29 @@ freeSchemeVars = \case
 freeCtxVars :: Context -> Set String
 freeCtxVars ctx = mconcat (fmap freeSchemeVars (Map.elems ctx))
 
-subsMono :: Map String Type -> Type -> Type
+subsMono :: Map String Mono -> Mono -> Mono
 subsMono subs = \case
     TVar x -> fromMaybe (TVar x) (Map.lookup x subs)
-    TInt -> TInt
+    TNat -> TNat
     TBool -> TBool
     TArr arg ret -> TArr (subsMono subs arg) (subsMono subs ret)
 
-subMono :: String -> Type -> Type -> Type
+subMono :: String -> Mono -> Mono -> Mono
 subMono target replacement = \case
     TVar x
         | x == target -> replacement
         | otherwise -> TVar x
-    TInt -> TInt
+    TNat -> TNat
     TBool -> TBool
     TArr arg ret -> TArr (subMono target replacement arg) (subMono target replacement ret)
 
-subsScheme :: Map String Type -> Scheme -> Scheme
+subsScheme :: Map String Mono -> Scheme -> Scheme
 subsScheme subs = \case
     SForall x s -> SForall x $ subsScheme subs' s
         where subs' = Map.delete x subs
     SMono t -> SMono $ subsMono subs t
 
-subScheme :: String -> Type -> Scheme -> Scheme
+subScheme :: String -> Mono -> Scheme -> Scheme
 subScheme target replacement = \case
     SForall x s
         | x == target -> SForall x s
