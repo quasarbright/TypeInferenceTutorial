@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a104fd15afdd03d3ee6e74717605998a1fd05dbf9872d04bd2aab02aae4a970f
+-- hash: 41cf5f84dab4d80f1704184b737f72a5791b30ffff964de2575f6739169f6149
 
 name:           TypeInferenceTutorial
 version:        0.1.0.0
@@ -29,6 +29,8 @@ library
   exposed-modules:
       AST
       Lib
+      Typing
+      UnionFind
   other-modules:
       Paths_TypeInferenceTutorial
   hs-source-dirs:
