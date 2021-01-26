@@ -1,0 +1,84 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: a104fd15afdd03d3ee6e74717605998a1fd05dbf9872d04bd2aab02aae4a970f
+
+name:           TypeInferenceTutorial
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/quasarbright/TypeInferenceTutorial#readme>
+homepage:       https://github.com/quasarbright/TypeInferenceTutorial#readme
+bug-reports:    https://github.com/quasarbright/TypeInferenceTutorial/issues
+author:         Mike Delmonaco
+maintainer:     mdelmonacochs@gmail.com
+copyright:      Mike Delmonaco
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/quasarbright/TypeInferenceTutorial
+
+library
+  exposed-modules:
+      AST
+      Lib
+  other-modules:
+      Paths_TypeInferenceTutorial
+  hs-source-dirs:
+      src
+  default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , extra
+    , megaparsec
+    , mtl
+    , transformers
+  default-language: Haskell2010
+
+executable TypeInferenceTutorial-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_TypeInferenceTutorial
+  hs-source-dirs:
+      app
+  default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
+  build-depends:
+      TypeInferenceTutorial
+    , base >=4.7 && <5
+    , containers
+    , extra
+    , megaparsec
+    , mtl
+    , transformers
+  default-language: Haskell2010
+
+test-suite TypeInferenceTutorial-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_TypeInferenceTutorial
+  hs-source-dirs:
+      test
+  default-extensions: LambdaCase RecordWildCards GeneralizedNewtypeDeriving TupleSections MonadComprehensions MultiWayIf
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
+  build-depends:
+      HUnit
+    , QuickCheck
+    , TypeInferenceTutorial
+    , base >=4.7 && <5
+    , containers
+    , extra
+    , hspec
+    , megaparsec
+    , mtl
+    , transformers
+  default-language: Haskell2010
