@@ -7,6 +7,7 @@ import Data.Map(Map)
 import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
+import Data.List (nub)
 
 -- types and instances --
 
@@ -17,12 +18,12 @@ data TypeError = Mismatch Mono Mono
 
 -- | the state will be maintained globally throughout checking.
 --  This ensures the same union find is used throughout and newvars are always unique
-type State = (UnionFind Mono, Integer) -- the integer is used for newvar
+type CheckerState = (UnionFind Mono, Integer) -- the integer is used for newvar
 
 -- | The monad for type checking. Contexts will transform locally, while States will transform globally.
 --  Since checking may result in a type error, we include an either.
 --  Every checker will take in a context and a state and output either a type error or the next state and a value.
-newtype Checker a = Checker { runChecker :: Context -> State -> Either TypeError (State, a)}
+newtype Checker a = Checker { runChecker :: Context -> CheckerState -> Either TypeError (CheckerState, a) }
 
 instance Functor Checker where
     fmap f ma = Checker (\ctx s ->
@@ -69,11 +70,11 @@ withVarAnnots :: [(String, Scheme)] -> Checker a -> Checker a
 withVarAnnots pairs = local (Map.union (Map.fromList pairs))
 
 -- | Get the state of the Checker
-get :: Checker State
+get :: Checker CheckerState
 get = Checker (\_ s -> Right (s,s))
 
 -- | Set the state of the checker
-put :: State -> Checker ()
+put :: CheckerState -> Checker ()
 put s = Checker (\_ _ -> Right (s,()))
 
 -- | Get the union find of the Checker
@@ -125,7 +126,7 @@ unify ta tb = do
     let ta' = find uf ta
         tb' = find uf tb
     let unifyTVar x t
-            | elem x (freeMonoVars t) = throwError (OccursError x t)
+            | elem x (freeMonoVars t) = throwError (OccursError x t) -- would lead to infinite type
             | otherwise = setUnionFind (union uf t (TVar x))
             -- the order here is important. We want x's representative to be t, not the other way around
     case (ta',tb') of
@@ -194,16 +195,25 @@ findMono (TArr arg ret) = do
     ret' <- findMono ret
     return (TArr arg' ret')
 
+-- | compute the infinite list of words producible by the given alphabet in shortlex order.
 shortlex :: [a] -> [[a]]
 shortlex xs = [[x] | x <- xs] ++ [xs' ++ [x] | xs' <- shortlex xs, x <- xs]
 
+-- | a,b,c,d,...,y,z,aa,ab,ac,...zy,zz,aaa,aab,...
 names :: [[Char]]
 names = shortlex ['a'..'z']
+
+-- | Get the free variables of a mono type as they occur in left-to-right order
+orderedFreeMonoVars :: Mono -> [String]
+orderedFreeMonoVars (TVar x) = [x]
+orderedFreeMonoVars TNat = []
+orderedFreeMonoVars TBool = []
+orderedFreeMonoVars (TArr arg ret) = nub (orderedFreeMonoVars arg ++ orderedFreeMonoVars ret)
 
 -- | replace type variables such that the resulting type has variables appearing in alphabetical order
 simplifyVars :: Mono -> Mono
 simplifyVars t =
-    let frees = Set.toList (freeMonoVars t)
+    let frees = orderedFreeMonoVars t
         subs = Map.fromList (zip frees (fmap TVar names))
         t' = subsMono subs t
     in t'
